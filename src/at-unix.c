@@ -17,6 +17,7 @@
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
+#include <syslog.h>
 
 #if _POSIX_TIMERS > 0
 #include <time.h>
@@ -313,7 +314,7 @@ const char *at_command(struct at *at, const char *format, ...)
         return NULL;
     }
 
-    printf("> %s\n", line);
+    syslog(LOG_DEBUG, "> %s", line);
 
     /* Append modem-style newline. */
     line[len++] = '\r';
@@ -326,7 +327,7 @@ const char *at_command_raw(struct at *at, const void *data, size_t size)
 {
     struct at_unix *priv = (struct at_unix *) at;
 
-    printf("> [%zu bytes]\n", size);
+    syslog(LOG_DEBUG, "> [%zu bytes]", size);
 
     return _at_command(priv, data, size);
 }
@@ -335,7 +336,7 @@ void *at_reader_thread(void *arg)
 {
     struct at_unix *priv = (struct at_unix *)arg;
 
-    printf("at_reader_thread[%s]: starting\n", priv->devpath);
+    syslog(LOG_DEBUG, "at_reader_thread[%s]: starting", priv->devpath);
 
     while (true) {
         pthread_mutex_lock(&priv->mutex);
@@ -372,18 +373,20 @@ void *at_reader_thread(void *arg)
             at_parser_feed(priv->at.parser, &ch, 1);
             pthread_mutex_unlock(&priv->mutex);
         } else if (result == -1) {
-            printf("at_reader_thread[%s]: %s\n", priv->devpath, strerror(why));
+            syslog(LOG_ERR, "at_reader_thread[%s]: %s", priv->devpath,
+                   strerror(why));
             if (why == EINTR)
                 continue;
             else
                 break;
         } else {
-            printf("at_reader_thread[%s]: received EOF\n", priv->devpath);
+            syslog(LOG_ERR, "at_reader_thread[%s]: received EOF",
+                   priv->devpath);
             break;
         }
     }
 
-    printf("at_reader_thread[%s]: finished\n", priv->devpath);
+    syslog(LOG_DEBUG, "at_reader_thread[%s]: finished", priv->devpath);
 
     return NULL;
 }
