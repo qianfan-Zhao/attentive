@@ -356,8 +356,8 @@ void *at_reader_thread(void *arg)
         pthread_mutex_unlock(&priv->mutex);
 
         /* Attempt to read some data. */
-        char ch;
-        int result = read(priv->fd, &ch, 1);
+        char buffer[128];
+        int result = read(priv->fd, buffer, sizeof(buffer));
         int why = errno;
 
         pthread_mutex_lock(&priv->mutex);
@@ -367,10 +367,10 @@ void *at_reader_thread(void *arg)
         pthread_cond_signal(&priv->cond);
         pthread_mutex_unlock(&priv->mutex);
 
-        if (result == 1) {
+        if (result > 0) {
             /* Data received, feed the parser. */
             pthread_mutex_lock(&priv->mutex);
-            at_parser_feed(priv->at.parser, &ch, 1);
+            at_parser_feed(priv->at.parser, buffer, result);
             pthread_mutex_unlock(&priv->mutex);
         } else if (result == -1) {
             syslog(LOG_ERR, "at_reader_thread[%s]: %s", priv->devpath,
