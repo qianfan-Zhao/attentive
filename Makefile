@@ -4,7 +4,7 @@
 # the terms of the Do What The Fuck You Want To Public License, Version 2, as
 # published by Sam Hocevar. See the COPYING file for more details.
 
-CFLAGS = $(shell pkg-config --cflags $(LIBRARIES)) -std=c99 -g -Wall -Wextra -Werror -Iinclude
+CFLAGS = $(shell pkg-config --cflags $(LIBRARIES)) -std=c99 -g -Wall -Iinclude
 LDLIBS = $(shell pkg-config --libs $(LIBRARIES))
 
 LIBRARIES = check glib-2.0
@@ -15,6 +15,9 @@ all: test example
 test: tests/test-parser
 	@echo "+++ Running parser test suite."
 	tests/test-parser
+
+example: src/example-at src/example-sim800
+	@echo "Compile example-at, example-sim800 done"
 
 clean:
 	$(RM) src/example-at src/example-sim800 tests/test-parser

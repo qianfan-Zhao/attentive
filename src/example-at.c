@@ -14,9 +14,9 @@
 #include <attentive/at.h>
 #include <attentive/at-unix.h>
 
-static void generic_modem_handle_urc(const void *line, size_t len, void *arg)
+static void generic_modem_handle_urc(const char *line, size_t len, void *arg)
 {
-    printf("[%p] URC: %.*s\n", arg, (int) len, (char *) line);
+    printf("[%p] URC: %.*s\n", arg, (int) len, line);
 }
 
 static const struct at_callbacks generic_modem_callbacks = {
@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
     printf("sending commands...\n");
     at_set_timeout(at, 10);
     for (const char **command=commands; *command; command++) {
-        const char *result = at_command(at, *command);
+        const char *result = at_command(at, "%s", *command);
         printf("%s => %s\n", *command, result ? result : strerror(errno));
     }
 
