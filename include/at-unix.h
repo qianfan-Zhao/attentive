@@ -11,7 +11,7 @@
 
 #include <termios.h>
 
-#include <attentive/at.h>
+#include <at.h>
 
 /**
  * Create an AT channel instance.

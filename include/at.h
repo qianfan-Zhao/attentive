@@ -9,7 +9,7 @@
 #ifndef ATTENTIVE_AT_H
 #define ATTENTIVE_AT_H
 
-#include <attentive/parser.h>
+#include <parser.h>
 
 /*
  * Publicly accessible fields. Platform-specific implementations may add private

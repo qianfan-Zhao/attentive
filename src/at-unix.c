@@ -6,7 +6,7 @@
  * published by Sam Hocevar. See the COPYING file for more details.
  */
 
-#include <attentive/at.h>
+#include <at.h>
 
 #include <errno.h>
 #include <fcntl.h>

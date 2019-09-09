@@ -6,7 +6,7 @@
  * published by Sam Hocevar. See the COPYING file for more details.
  */
 
-#include <attentive/parser.h>
+#include <parser.h>
 
 #include <stdio.h>
 #include <string.h>
