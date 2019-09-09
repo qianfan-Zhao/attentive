@@ -71,7 +71,7 @@ static void handle_urc(const char *buf, size_t len, void *arg)
     struct at *at = (struct at *) arg;
 
     /* Forward to caller's URC callback, if any. */
-    if (at->cbs->handle_urc)
+    if (at->cbs && at->cbs->handle_urc)
         at->cbs->handle_urc(buf, len, at->arg);
 }
 
