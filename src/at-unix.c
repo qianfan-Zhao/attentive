@@ -363,6 +363,12 @@ void *at_reader_thread(void *arg)
         pthread_mutex_lock(&priv->mutex);
         /* Unlock access to the port descriptor. */
         priv->busy = false;
+        /* Close the port if it is disconnected */
+        if (result == 0) {
+                priv->open = false;
+                close(priv->fd);
+                priv->fd = -1;
+        }
         /* Notify at_close() that the port is now free. */
         pthread_cond_signal(&priv->cond);
         pthread_mutex_unlock(&priv->mutex);
