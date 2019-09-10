@@ -144,6 +144,7 @@ int at_open(struct at *at, const char *devpath, speed_t baudrate)
 
     struct termios attr;
     tcgetattr(priv->fd, &attr);
+    cfmakeraw(&attr);
     cfsetispeed(&attr, baudrate);
     cfsetospeed(&attr, baudrate);
     tcsetattr(priv->fd, TCSANOW, &attr);
