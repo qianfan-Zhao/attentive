@@ -40,6 +40,7 @@ struct at_unix {
     pthread_t thread;       /**< Reader thread. */
     pthread_mutex_t mutex;  /**< Protects variables below and the parser. */
     pthread_cond_t cond;    /**< For signalling open/busy release. */
+    pthread_condattr_t cattr; /**< Set pthread_cond_signal use CLOCK_MONOTONIC */
 
     int fd;                 /**< Serial port file descriptor. */
     bool running : 1;       /**< Reader thread should be running. */
@@ -113,7 +114,14 @@ struct at *at_alloc_unix(void)
     priv->thread = -1;
     priv->running = true;
     pthread_mutex_init(&priv->mutex, NULL);
-    pthread_cond_init(&priv->cond, NULL);
+
+    if (pthread_condattr_init(&priv->cattr) < 0) {
+        at_parser_free(priv->at.parser);
+        free(priv);
+        return NULL;
+    }
+    pthread_condattr_setclock(&priv->cattr, CLOCK_MONOTONIC);
+    pthread_cond_init(&priv->cond, &priv->cattr);
 
     return (struct at *) priv;
 }
@@ -200,6 +208,7 @@ void at_free(struct at *at)
     pthread_mutex_destroy(&priv->mutex);
 
     /* free up resources */
+    pthread_condattr_destroy(&priv->cattr);
     free(priv->at.parser);
     free(priv);
 }
@@ -249,14 +258,8 @@ static const char *_at_command(struct at_unix *priv, const void *data, size_t si
     priv->waiting = true;
     if (priv->timeout) {
         struct timespec ts;
-#if _POSIX_TIMERS > 0
-        clock_gettime(CLOCK_REALTIME, &ts);
-#else
-        struct timeval tv;
-        gettimeofday(&tv, NULL);
-        ts.tv_sec = tv.tv_sec;
-        ts.tv_nsec = tv.tv_usec * 1000;
-#endif
+
+        clock_gettime(CLOCK_MONOTONIC, &ts);
         ts.tv_sec += priv->timeout;
 
         while (priv->open && priv->waiting)
