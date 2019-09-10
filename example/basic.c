@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
     const char **cmd, *resp;
     struct at *at;
 
-    if (!(at = at_alloc_unix(argv[1], B115200))) {
+    if (!(at = at_alloc_unix())) {
         fprintf(stderr, "alloc at unix failed\n");
         return -1;
     }
@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
     signal(SIGINT, signal_handler);
     at_set_timeout(at, 1);
 
-    if (at_open(at) < 0) {
+    if (at_open(at, argv[1], B115200) < 0) {
         fprintf(stderr, "open %s failed: %m\n", argv[1]);
         prog_exit = 1;
         at_free(at);
