@@ -93,7 +93,7 @@ static const struct at_parser_callbacks parser_callbacks = {
     .scan_line = scan_line,
 };
 
-struct at *at_alloc_unix(const char *devpath, speed_t baudrate)
+struct at *at_alloc_unix(void)
 {
     /* allocate instance */
     struct at_unix *priv = malloc(sizeof(struct at_unix));
@@ -110,26 +110,15 @@ struct at *at_alloc_unix(const char *devpath, speed_t baudrate)
         return NULL;
     }
 
-    /* copy over device parameters */
-    priv->devpath = devpath;
-    priv->baudrate = baudrate;
-
-    /* install empty SIGUSR1 handler */
-    struct sigaction sa = {
-        .sa_handler = handle_sigusr1,
-    };
-    sigaction(SIGUSR1, &sa, NULL);
-
-    /* initialize and start reader thread */
+    priv->thread = -1;
     priv->running = true;
     pthread_mutex_init(&priv->mutex, NULL);
     pthread_cond_init(&priv->cond, NULL);
-    pthread_create(&priv->thread, NULL, at_reader_thread, (void *) priv);
 
     return (struct at *) priv;
 }
 
-int at_open(struct at *at)
+int at_open(struct at *at, const char *devpath, speed_t baudrate)
 {
     struct at_unix *priv = (struct at_unix *) at;
 
@@ -139,22 +128,29 @@ int at_open(struct at *at)
         return 0;
     }
 
-    priv->fd = open(priv->devpath, O_RDWR);
+    priv->fd = open(devpath, O_RDWR);
     if (priv->fd == -1) {
         pthread_mutex_unlock(&priv->mutex);
         return -1;
     }
 
-    if (priv->baudrate) {
-        struct termios attr;
-        tcgetattr(priv->fd, &attr);
-        cfsetispeed(&attr, priv->baudrate);
-        cfsetospeed(&attr, priv->baudrate);
-        tcsetattr(priv->fd, TCSANOW, &attr);
-    }
+    struct termios attr;
+    tcgetattr(priv->fd, &attr);
+    cfsetispeed(&attr, baudrate);
+    cfsetospeed(&attr, baudrate);
+    tcsetattr(priv->fd, TCSANOW, &attr);
 
     priv->open = true;
-    pthread_cond_signal(&priv->cond);
+    priv->devpath = devpath;
+    priv->baudrate = baudrate;
+
+    /* install empty SIGUSR1 handler */
+    struct sigaction sa = {
+        .sa_handler = handle_sigusr1,
+    };
+    sigaction(SIGUSR1, &sa, NULL);
+    pthread_create(&priv->thread, NULL, at_reader_thread, (void *) priv);
+
     pthread_mutex_unlock(&priv->mutex);
 
     return 0;
@@ -170,21 +166,26 @@ int at_close(struct at *at)
         return 0;
     }
 
-    /* Mark the port descriptor as invalid. */
+    /* ask the reader thread to terminate */
+    priv->running = false;
     priv->open = false;
-
-    /* Interrupt read() in the reader thread. */
-    pthread_kill(priv->thread, SIGUSR1);
-
-    /* Wait for the read operation to complete. */
-    while (priv->busy)
-        pthread_cond_wait(&priv->cond, &priv->mutex);
-
-    /* Close the file descriptor. */
-    close(priv->fd);
-    priv->fd = -1;
-
     pthread_mutex_unlock(&priv->mutex);
+
+    if (priv->thread != -1) {
+        /* Interrupt read() in the reader thread. */
+        pthread_kill(priv->thread, SIGUSR1);
+        /* wait for the reader thread to terminate */
+        pthread_join(priv->thread, NULL);
+
+        priv->thread = -1;
+    }
+
+    if (priv->fd != -1) {
+        /* Close the file descriptor. */
+        close(priv->fd);
+        priv->fd = -1;
+    }
+
     return 0;
 }
 
@@ -195,14 +196,6 @@ void at_free(struct at *at)
     /* make sure the channel is closed */
     at_close(at);
 
-    /* ask the reader thread to terminate */
-    pthread_mutex_lock(&priv->mutex);
-    priv->running = false;
-    pthread_mutex_unlock(&priv->mutex);
-
-    /* wait for the reader thread to terminate */
-    pthread_kill(priv->thread, SIGUSR1);
-    pthread_join(priv->thread, NULL);
     pthread_cond_destroy(&priv->cond);
     pthread_mutex_destroy(&priv->mutex);
 
@@ -341,10 +334,6 @@ void *at_reader_thread(void *arg)
     while (true) {
         pthread_mutex_lock(&priv->mutex);
 
-        /* Wait for the port descriptor to be valid. */
-        while (priv->running && !priv->open)
-            pthread_cond_wait(&priv->cond, &priv->mutex);
-
         if (!priv->running) {
             /* Time to die. */
             pthread_mutex_unlock(&priv->mutex);
@@ -369,8 +358,6 @@ void *at_reader_thread(void *arg)
                 close(priv->fd);
                 priv->fd = -1;
         }
-        /* Notify at_close() that the port is now free. */
-        pthread_cond_signal(&priv->cond);
         pthread_mutex_unlock(&priv->mutex);
 
         if (result > 0) {

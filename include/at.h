@@ -9,6 +9,7 @@
 #ifndef ATTENTIVE_AT_H
 #define ATTENTIVE_AT_H
 
+#include <termios.h>
 #include <parser.h>
 
 /*
@@ -41,9 +42,11 @@ struct at *at_alloc(void);
  * Open the AT channel.
  *
  * @param at AT channel instance.
+ * @param devpath Device path.
+ * @param baudrate If non-zero, sets device baudrate (see termios.h).
  * @returns Zero on success, -1 and sets errno on failure.
  */
-int at_open(struct at *at);
+int at_open(struct at *at, const char *devpath, speed_t baudrate);
 
 /**
  * Close the AT channel.
