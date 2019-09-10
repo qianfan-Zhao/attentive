@@ -111,7 +111,6 @@ struct at *at_alloc_unix(void)
         return NULL;
     }
 
-    priv->thread = -1;
     priv->running = true;
     pthread_mutex_init(&priv->mutex, NULL);
 
@@ -180,13 +179,11 @@ int at_close(struct at *at)
     priv->open = false;
     pthread_mutex_unlock(&priv->mutex);
 
-    if (priv->thread != -1) {
+    if (pthread_kill(priv->thread, 0) != ESRCH) {
         /* Interrupt read() in the reader thread. */
         pthread_kill(priv->thread, SIGUSR1);
         /* wait for the reader thread to terminate */
         pthread_join(priv->thread, NULL);
-
-        priv->thread = -1;
     }
 
     if (priv->fd != -1) {
