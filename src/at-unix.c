@@ -234,8 +234,10 @@ void at_expect_dataprompt(struct at *at)
     at_parser_expect_dataprompt(at->parser);
 }
 
-static const char *_at_command(struct at_unix *priv, const void *data, size_t size)
+static const char *_at_command(struct at_unix *priv, int t, const void *data, size_t size)
 {
+    int timeout = t;
+
     pthread_mutex_lock(&priv->mutex);
 
     /* Bail out if the channel is closing or closed. */
@@ -254,11 +256,14 @@ static const char *_at_command(struct at_unix *priv, const void *data, size_t si
 
     /* Wait for the parser thread to collect a response. */
     priv->waiting = true;
-    if (priv->timeout) {
+    if (timeout < 0)
+        timeout = priv->timeout;
+
+    if (timeout) {
         struct timespec ts;
 
         clock_gettime(CLOCK_MONOTONIC, &ts);
-        ts.tv_sec += priv->timeout;
+        ts.tv_sec += timeout;
 
         while (priv->open && priv->waiting)
             if (pthread_cond_timedwait(&priv->cond, &priv->mutex, &ts) == ETIMEDOUT)
@@ -291,19 +296,13 @@ static const char *_at_command(struct at_unix *priv, const void *data, size_t si
     return result;
 }
 
-const char *at_command(struct at *at, const char *format, ...)
+static const char *_at_command_timedout(struct at *at, int t, const char *format, va_list ap)
 {
     struct at_unix *priv = (struct at_unix *) at;
-
-    /* Build command string. */
-    va_list ap;
-    va_start(ap, format);
     char line[AT_COMMAND_LENGTH];
-    int len = vsnprintf(line, sizeof(line)-1, format, ap);
-    va_end(ap);
 
-    /* Bail out if we run out of space. */
-    if (len >= (int)(sizeof(line)-1)) {
+    int len = vsnprintf(line, sizeof(line) - 1, format, ap);
+    if (len >= (int)(sizeof(line) - 1)) {
         errno = ENOMEM;
         return NULL;
     }
@@ -314,16 +313,47 @@ const char *at_command(struct at *at, const char *format, ...)
     line[len++] = '\r';
 
     /* Send the command. */
-    return _at_command(priv, line, len);
+    return _at_command(priv, t, line, len);
 }
 
-const char *at_command_raw(struct at *at, const void *data, size_t size)
+const char *at_command(struct at *at, const char *format, ...)
+{
+    const char *response;
+
+    /* Build command string. */
+    va_list ap;
+    va_start(ap, format);
+    response = _at_command_timedout(at, -1, format, ap);
+    va_end(ap);
+
+    return response;
+}
+
+const char *at_command_timedout(struct at *at, int t, const char *format, ...)
+{
+    const char *response;
+
+    /* Build command string. */
+    va_list ap;
+    va_start(ap, format);
+    response = _at_command_timedout(at, t, format, ap);
+    va_end(ap);
+
+    return response;
+}
+
+const char *at_command_raw_timedout(struct at *at, int t, const void *data, size_t size)
 {
     struct at_unix *priv = (struct at_unix *) at;
 
     syslog(LOG_DEBUG, "> [%zu bytes]", size);
 
-    return _at_command(priv, data, size);
+    return _at_command(priv, t, data, size);
+}
+
+const char *at_command_raw(struct at *at, const void *data, size_t size)
+{
+    return at_command_raw_timedout(at, -1, data, size);
 }
 
 void *at_reader_thread(void *arg)

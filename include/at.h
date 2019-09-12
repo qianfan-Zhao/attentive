@@ -101,6 +101,7 @@ void at_set_timeout(struct at *at, int timeout);
  *
  * @param at AT channel instance.
  * @param format printf-comaptible format.
+ * @param timeout Timeout in seconds (zero to disable).
  * @returns Pointer to response (valid until next at_command) or NULL
  *          if a timeout occurs. Response is newline-delimited and does
  *          not include the final "OK".
@@ -108,16 +109,22 @@ void at_set_timeout(struct at *at, int timeout);
 __attribute__ ((format (printf, 2, 3)))
 const char *at_command(struct at *at, const char *format, ...);
 
+__attribute__ ((format (printf, 3, 4)))
+const char *at_command_timedout(struct at *at, int timeout, const char *format, ...);
+
 /**
  * Send raw data over the AT channel.
  *
  * @param at AT channel instance.
+ * @param timeout Timeout in seconds (zero to disable).
  * @param data Raw data to send.
  * @param size Data size in bytes.
  * @returns Pointer to response (valid until next at_command) or NULL
  *          if a timeout occurs.
  */
 const char *at_command_raw(struct at *at, const void *data, size_t size);
+
+const char *at_command_raw_timedout(struct at *at, int timeout, const void *data, size_t size);
 
 /**
  * Send an AT command and return -1 if it doesn't return OK.
